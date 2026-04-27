@@ -1,321 +1,143 @@
-#include <stdio.h>
-#include <string.h>
-#include <stdlib.h>
-#include "token.h"
+# Relatório - Assembler e Executor Neander
 
-typedef struct {
-    char destino[32];
-    long valor;
-} InstrucaoGerada;
+## 1. Visão geral
 
-typedef struct {
-    long valor;
-    char rotulo[16];
-} MapaConstante;
+Este trabalho implementa três módulos integrados para a Máquina Neander:
 
-static MapaConstante constantes_dinamicas[256];
-static int total_constantes_dinamicas = 0;
-static int sequencia_rotulos = 0;
+- `assembler.c`: traduz código assembly para arquivo de memória no formato NDR.
+- `executor.c`: carrega o arquivo de memória e simula a execução das instruções da máquina.
+- parser modular em `src/`: traduz `.drg` para `.asm` no fluxo principal.
 
-static int linha_vazia_ou_comentario(const char *linha) {
-    while (*linha == ' ' || *linha == '\t' || *linha == '\n' || *linha == '\r')
-        linha++;
-    return *linha == '\0' || *linha == ';' || *linha == '#';
-}
+O objetivo foi construir um fluxo completo de montagem e execução de programas, com validação de sintaxe no assembler e simulação do ciclo de máquina no executor.
 
-static void remover_quebra_linha(char *linha) {
-    linha[strcspn(linha, "\r\n")] = '\0';
-}
+---
 
-static char *pular_espacos(char *texto) {
-    while (*texto == ' ' || *texto == '\t')
-        texto++;
-    return texto;
-}
+## 1.1 Parser
 
-static const char *obter_rotulo_constante(long valor) {
-    // Reaproveita rótulo já existente para não duplicar DATA no final do arquivo.
-    for (int i = 0; i < total_constantes_dinamicas; i++) {
-        if (constantes_dinamicas[i].valor == valor)
-            return constantes_dinamicas[i].rotulo;
-    }
-    if (total_constantes_dinamicas >= 256)
-        return NULL;
-    constantes_dinamicas[total_constantes_dinamicas].valor = valor;
-    snprintf(constantes_dinamicas[total_constantes_dinamicas].rotulo,
-             sizeof(constantes_dinamicas[total_constantes_dinamicas].rotulo),
-             "CONST_%d", total_constantes_dinamicas);
-    total_constantes_dinamicas++;
-    return constantes_dinamicas[total_constantes_dinamicas - 1].rotulo;
-}
+O projeto usa uma versão modular em `src/` com:
 
-static int token_numero(const char *texto, long *valor) {
-    char *fim = NULL;
-    *valor = strtol(texto, &fim, 10);
-    return fim != texto && *fim == '\0';
-}
+- `lexer.c`: análise léxica e geração de tokens;
+- `parser.c`: análise sintática/semântica da expressão;
+- `token.h`: tipos de token e assinaturas compartilhadas;
+- `drg_compiler.c`: programa principal para avaliar expressão e gerar `.asm`.
 
-static int token_identificador(const char *texto) {
-    if (!texto || *texto == '\0')
-        return 0;
-    if (!((*texto >= 'A' && *texto <= 'Z') || (*texto >= 'a' && *texto <= 'z') || *texto == '_'))
-        return 0;
-    for (int i = 1; texto[i] != '\0'; i++) {
-        char c = texto[i];
-        if (!((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') || c == '_'))
-            return 0;
-    }
-    return 1;
-}
+O **lexer** (`lexer.c`) percorre o texto da linha e transforma sequências de caracteres em **tokens** (identificador, número, operadores e delimitadores), ignorando espaços e sinalizando o fim da entrada.
 
-static int emitir_atribuicao_dinamica(FILE *saida, char *linha, char *erro) {
-    char destino[32], op1[32], op2[32] = {0};
-    char operador = 0;
-    long numero = 0;
-    int campos = sscanf(linha, " %31[^= ] = %31s %c %31s", destino, op1, &operador, op2);
-    if (campos < 2) {
-        strcpy(erro, "atribuicao invalida");
-        return 0;
-    }
+O **parser** (`parser.c`) consome essa lista de tokens e aplica uma gramática simples por **descida recursiva**, respeitando precedência (`*` antes de `+`) e parênteses, além de validar se variáveis aparecem apenas depois de terem valor conhecido.
 
-    // Registra a variável para garantir que ela seja declarada com SPACE no fim.
-    definir_variavel(destino, 0);
+A **geração de código** fica concentrada em `drg_compiler.c`, que traduz atribuições e estruturas (`if`/`while`) em sequências de instruções Neander (`LDA`, `ADD`, `STA`, `JMP`, `JN`, `JZ`, `HLT`) e declara `DATA`/`SPACE` para constantes e variáveis usadas no programa gerado.
 
-    if (token_numero(op1, &numero)) {
-        const char *c = obter_rotulo_constante(numero);
-        if (!c) { strcpy(erro, "muitas constantes"); return 0; }
-        fprintf(saida, "    LDA %s\n", c);
-    } else if (token_identificador(op1)) {
-        definir_variavel(op1, 0);
-        fprintf(saida, "    LDA %s\n", op1);
-    } else {
-        strcpy(erro, "operando invalido");
-        return 0;
-    }
+Essa organização deixa o fluxo mais próximo do modelo visto em aula (fases separadas) sem aumentar a complexidade da linguagem suportada.
 
-    if (campos == 4) {
-        if (token_numero(op2, &numero)) {
-            if (operador == '-')
-                numero = -numero;
-            else if (operador != '+') {
-                strcpy(erro, "operador invalido");
-                return 0;
-            }
-            const char *c = obter_rotulo_constante(numero);
-            if (!c) { strcpy(erro, "muitas constantes"); return 0; }
-            fprintf(saida, "    ADD %s\n", c);
-        } else if (operador == '+' && token_identificador(op2)) {
-            definir_variavel(op2, 0);
-            fprintf(saida, "    ADD %s\n", op2);
-        } else {
-            strcpy(erro, "use '+' com variavel ou '-' com numero");
-            return 0;
-        }
-    }
+Na versão atual, o módulo principal aceita também arquivo `.drg` com múltiplas linhas (por exemplo `a = 10`, `b = 20`, `c = a + b`), mantendo valores de variáveis entre linhas durante a análise e gerando um `.asm` único para o `assembler`.
 
-    fprintf(saida, "    STA %s\n", destino);
-    return 1;
-}
+Para os exemplos do item 4 do enunciado, os arquivos ficam centralizados em `testes/`:
+- `teste_calculo_simples.drg` (cálculo simples);
+- `teste_salto_condicional.drg` (condicional/laço em `.drg`, gerando `.asm` com `JMP`, `JN` e `JZ`).
 
-static void escrever_programa(FILE *saida, InstrucaoGerada *instrucoes, int total_instrucoes) {
-    fprintf(saida, "; Gerado pelo compilador simples (.drg -> .asm)\n");
-    fprintf(saida, "ORG 0\n");
+Também foram incluídos exemplos em assembly manual para execução direta no `assembler`, sem necessidade de passar pelo parser:
+- `asm_calculo_simples.asm`;
+- `asm_salto_condicional.asm`.
 
-    for (int i = 0; i < total_instrucoes; i++) {
-        fprintf(saida, "    LDA CONST_%d\n", i);
-        fprintf(saida, "    STA %s\n", instrucoes[i].destino);
-    }
+---
 
-    fprintf(saida, "    HLT\n");
+## 2. Estrutura do Assembler
 
-    for (int i = 0; i < total_instrucoes; i++)
-        fprintf(saida, "CONST_%d DATA %ld\n", i, instrucoes[i].valor & 0xFF);
+O assembler foi implementado em **duas passagens**, com uso de **tabela de símbolos** para resolução de rótulos.
 
-    for (int i = 0; i < obter_total_variaveis(); i++) {
-        Variavel v = obter_variavel_por_indice(i);
-        fprintf(saida, "%s SPACE 1\n", v.nome);
-    }
-}
+### 2.1 Primeira passagem
 
-static int gerar_de_expressao_unica(const char *saida_asm, char *expressao) {
-    char nome_destino[32];
-    char erro[128];
-    long valor = 0;
-    InstrucaoGerada instrucao;
+Na primeira passagem, o código fonte assembly é percorrido linha a linha para:
 
-    limpar_variaveis();
+- remover comentários e ignorar linhas vazias;
+- identificar rótulos e montar a tabela de símbolos (rótulo -> endereço);
+- processar diretivas (`ORG`, `DATA`, `SPACE`) para cálculo correto do `PC`;
+- validar erros de sintaxe, como:
+  - instrução inválida;
+  - instrução com operando faltando ou em excesso;
+  - diretivas com parâmetros inválidos;
+  - rótulos duplicados.
 
-    if (!analisar_instrucao(expressao, nome_destino, sizeof(nome_destino), &valor, erro, sizeof(erro))) {
-        fprintf(stderr, "Erro: %s\n", erro);
-        return 0;
-    }
-    if (!definir_variavel(nome_destino, valor)) {
-        fprintf(stderr, "Erro: limite de variaveis excedido.\n");
-        return 0;
-    }
+Ao final dessa etapa, os endereços dos símbolos já estão definidos.
 
-    strncpy(instrucao.destino, nome_destino, sizeof(instrucao.destino) - 1);
-    instrucao.destino[sizeof(instrucao.destino) - 1] = '\0';
-    instrucao.valor = valor;
+### 2.2 Tabela de símbolos
 
-    FILE *saida = fopen(saida_asm, "w");
-    if (!saida) {
-        perror(saida_asm);
-        return 0;
-    }
+A tabela de símbolos armazena:
 
-    escrever_programa(saida, &instrucao, 1);
-    fclose(saida);
-    return 1;
-}
+- nome do rótulo;
+- endereço correspondente na memória.
 
-static int gerar_de_arquivo_drg(const char *arquivo_drg, const char *saida_asm) {
-    FILE *entrada = fopen(arquivo_drg, "r");
-    if (!entrada) {
-        perror(arquivo_drg);
-        return 0;
-    }
+Ela é essencial para instruções de salto e acesso a dados por nome, por exemplo `JMP FIM` ou `LDA VALOR`.
 
-    FILE *saida = fopen(saida_asm, "w");
-    if (!saida) {
-        perror(saida_asm);
-        fclose(entrada);
-        return 0;
-    }
+### 2.3 Segunda passagem
 
-    char linha[256];
-    int numero_linha = 0;
-    char erro[128];
+Na segunda passagem, o arquivo é percorrido novamente para:
 
-    limpar_variaveis();
-    total_constantes_dinamicas = 0;
-    sequencia_rotulos = 0;
-    fprintf(saida, "; Gerado pelo compilador simples (.drg -> .asm)\n");
-    fprintf(saida, "ORG 0\n");
+- converter mnemônicos em opcodes;
+- resolver operandos (numéricos ou por símbolo);
+- escrever os bytes da memória final (`MEMORIA[256]`).
 
-    while (fgets(linha, sizeof(linha), entrada)) {
-        numero_linha++;
-        remover_quebra_linha(linha);
-        char *atual = pular_espacos(linha);
-        if (linha_vazia_ou_comentario(atual))
-            continue;
+Depois da montagem, o assembler gera o arquivo de saída no padrão **NDR**:
 
-        if (strncmp(atual, "if ", 3) == 0 || strcmp(atual, "if") == 0) {
-            char cond[32], rotulo_fim[32];
-            if (sscanf(atual, "if %31s", cond) != 1) {
-                fprintf(stderr, "Erro na linha %d: if invalido\n", numero_linha);
-                fclose(entrada); fclose(saida); return 0;
-            }
-            if (!fgets(linha, sizeof(linha), entrada)) {
-                fprintf(stderr, "Erro na linha %d: if sem corpo\n", numero_linha);
-                fclose(entrada); fclose(saida); return 0;
-            }
-            numero_linha++;
-            remover_quebra_linha(linha);
-            snprintf(rotulo_fim, sizeof(rotulo_fim), "FIM_IF_%d", sequencia_rotulos++);
-            definir_variavel(cond, 0);
-            // Convenção usada: se cond for negativa ou zero, não executa o bloco.
-            fprintf(saida, "    LDA %s\n    JN %s\n    JZ %s\n", cond, rotulo_fim, rotulo_fim);
-            if (!emitir_atribuicao_dinamica(saida, pular_espacos(linha), erro)) {
-                fprintf(stderr, "Erro na linha %d: %s\n", numero_linha, erro);
-                fclose(entrada); fclose(saida); return 0;
-            }
-            fprintf(saida, "%s:\n", rotulo_fim);
-            continue;
-        }
+- cabeçalho de 4 bytes (`03 4E 44 52`);
+- 256 palavras de 16 bits em little-endian (byte útil + byte zero).
 
-        if (strncmp(atual, "while ", 6) == 0 || strcmp(atual, "while") == 0) {
-            char cond[32], rotulo_ini[32], rotulo_fim[32];
-            if (sscanf(atual, "while %31s", cond) != 1) {
-                fprintf(stderr, "Erro na linha %d: while invalido\n", numero_linha);
-                fclose(entrada); fclose(saida); return 0;
-            }
-            if (!fgets(linha, sizeof(linha), entrada)) {
-                fprintf(stderr, "Erro na linha %d: while sem corpo\n", numero_linha);
-                fclose(entrada); fclose(saida); return 0;
-            }
-            numero_linha++;
-            remover_quebra_linha(linha);
-            snprintf(rotulo_ini, sizeof(rotulo_ini), "INI_WHILE_%d", sequencia_rotulos);
-            snprintf(rotulo_fim, sizeof(rotulo_fim), "FIM_WHILE_%d", sequencia_rotulos++);
-            definir_variavel(cond, 0);
-            // while cond: repete enquanto cond > 0.
-            fprintf(saida, "%s:\n    LDA %s\n    JN %s\n    JZ %s\n", rotulo_ini, cond, rotulo_fim, rotulo_fim);
-            if (!emitir_atribuicao_dinamica(saida, pular_espacos(linha), erro)) {
-                fprintf(stderr, "Erro na linha %d: %s\n", numero_linha, erro);
-                fclose(entrada); fclose(saida); return 0;
-            }
-            fprintf(saida, "    JMP %s\n%s:\n", rotulo_ini, rotulo_fim);
-            continue;
-        }
+Esse formato é compatível com o GUI do Neander.
 
-        if (!emitir_atribuicao_dinamica(saida, atual, erro)) {
-            fprintf(stderr, "Erro na linha %d: %s\n", numero_linha, erro);
-            fclose(entrada);
-            fclose(saida);
-            return 0;
-        }
-    }
+---
 
-    fprintf(saida, "    HLT\n");
-    for (int i = 0; i < total_constantes_dinamicas; i++)
-        fprintf(saida, "%s DATA %ld\n", constantes_dinamicas[i].rotulo, constantes_dinamicas[i].valor);
-    for (int i = 0; i < obter_total_variaveis(); i++) {
-        Variavel v = obter_variavel_por_indice(i);
-        fprintf(saida, "%s SPACE 1\n", v.nome);
-    }
-    fclose(entrada);
-    fclose(saida);
-    return 1;
-}
+## 3. Funcionamento do Executor
 
-static void mostrar_uso(const char *programa) {
-    fprintf(stderr,
-            "Uso:\n"
-            "  %s \"expressao\"\n"
-            "  %s -o saida.asm \"expressao\"\n"
-            "  %s \"variavel = expressao\" saida.asm\n"
-            "  %s arquivo.drg saida.asm\n",
-            programa, programa, programa, programa);
-}
+O executor simula a Máquina Neander com:
 
-int main(int argc, char *argv[]) {
-    if (argc == 2) {
-        char nome_destino[32];
-        char erro[128];
-        long valor = 0;
-        limpar_variaveis();
-        if (!analisar_instrucao(argv[1], nome_destino, sizeof(nome_destino), &valor, erro, sizeof(erro))) {
-            fprintf(stderr, "Erro: %s\n", erro);
-            return 1;
-        }
-        printf("Resultado = %ld\n", valor);
-        return 0;
-    }
+- memória de 256 posições (`MEMORIA`);
+- registradores `AC`, `PC`, `IR`, `MAR`, `MDR`;
+- flags `N` (negativo) e `Z` (zero).
 
-    if (argc == 4 && strcmp(argv[1], "-o") == 0) {
-        if (!gerar_de_expressao_unica(argv[2], argv[3]))
-            return 1;
-        printf("Assembly gerado em: %s\n", argv[2]);
-        return 0;
-    }
+### 3.1 Carregamento
 
-    if (argc == 3) {
-        // Modo automático: se o primeiro argumento existir como arquivo, trata como .drg.
-        // Caso contrário, mantém compatibilidade com o modo de expressão única.
-        FILE *teste = fopen(argv[1], "r");
-        if (teste) {
-            fclose(teste);
-            if (!gerar_de_arquivo_drg(argv[1], argv[2]))
-                return 1;
-        } else {
-            if (!gerar_de_expressao_unica(argv[2], argv[1]))
-                return 1;
-        }
-        printf("Arquivo gerado: %s\n", argv[2]);
-        return 0;
-    }
+O arquivo de entrada é aberto em modo binário e validado pelo cabeçalho NDR.  
+Em seguida, as 256 posições de memória são carregadas para a simulação.
 
-    mostrar_uso(argv[0]);
-    return 1;
-}
+### 3.2 Ciclo de máquina
+
+A execução segue o ciclo clássico:
+
+1. **Fetch**: busca da instrução apontada por `PC` e armazenamento em `IR`.
+2. **Decode**: identificação do opcode e tipo de instrução.
+3. **Execute**: execução da operação (aritmética, lógica, salto, armazenamento etc.).
+
+As instruções implementadas incluem:
+
+- `NOP`, `STA`, `LDA`, `ADD`, `OR`, `AND`, `NOT`, `JMP`, `JN`, `JZ`, `HLT`.
+
+O executor suporta:
+
+- execução contínua;
+- execução passo a passo (`step`), mostrando estado de registradores a cada instrução.
+- visualização de saída em formato **decimal** ou **hexadecimal** (definido por parâmetro na execução).
+
+### 3.3 Manipulação de flags
+
+Após operações que alteram o acumulador (`AC`), as flags são atualizadas:
+
+- `Z = 1` quando `AC == 0`;
+- `N = 1` quando `AC < 0`.
+
+Essas flags controlam os saltos condicionais:
+
+- `JZ`: salto se zero;
+- `JN`: salto se negativo.
+
+---
+
+## 4. Conclusão
+
+Os módulos foram implementados de forma funcional e integrada:
+
+- o assembler gera arquivo de memória no formato NDR;
+- o executor carrega esse arquivo e executa corretamente os programas;
+- o parser modular em `src/` gera `.asm` a partir de `.drg`;
+- os testes de soma e saltos condicionais (via parser e via assembly manual) validaram o comportamento esperado.
+
+Com isso, os requisitos de documentação sobre estrutura do assembler e funcionamento do executor foram atendidos.
