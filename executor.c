@@ -15,6 +15,7 @@ int N = 0;      //flag negativo
 //Memória: 256 posições de 8bits
 uint8_t MEMORIA[256];
 
+// Flags seguem o estado atual do acumulador após operações aritméticas/lógicas.
 void atualizar_flags() {
     Z = (AC == 0);
     N = (AC < 0);
@@ -48,6 +49,7 @@ void carregar_arquivo(char *caminho){
             fclose(arquivo);
             exit(1);
         }
+        // Cada palavra do NDR tem 16 bits; para Neander usamos apenas o byte baixo.
         MEMORIA[i] = par[0];
     }
 
@@ -121,6 +123,7 @@ int main(int argc, char *argv[]){
 
     while(executando){
         //  FETCH 
+        // Busca opcode no endereço PC e avança o contador para próxima posição.
         IR_instrucao = ler_memoria(PC);
         acessos_memoria++;
         PC++;
@@ -135,6 +138,7 @@ int main(int argc, char *argv[]){
         }
 
         // EXECUTE
+        // Para instruções com operando, primeiro lê o endereço no byte seguinte.
         if(instrucao == 0x20){  //LDA
             uint8_t endereco = ler_memoria(PC);
             acessos_memoria++;

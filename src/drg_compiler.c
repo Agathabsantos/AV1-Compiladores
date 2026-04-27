@@ -34,6 +34,7 @@ static char *pular_espacos(char *texto) {
 }
 
 static const char *obter_rotulo_constante(long valor) {
+    // Reaproveita rótulo já existente para não duplicar DATA no final do arquivo.
     for (int i = 0; i < total_constantes_dinamicas; i++) {
         if (constantes_dinamicas[i].valor == valor)
             return constantes_dinamicas[i].rotulo;
@@ -77,6 +78,7 @@ static int emitir_atribuicao_dinamica(FILE *saida, char *linha, char *erro) {
         return 0;
     }
 
+    // Registra a variável para garantir que ela seja declarada com SPACE no fim.
     definir_variavel(destino, 0);
 
     if (token_numero(op1, &numero)) {
@@ -212,6 +214,7 @@ static int gerar_de_arquivo_drg(const char *arquivo_drg, const char *saida_asm) 
             remover_quebra_linha(linha);
             snprintf(rotulo_fim, sizeof(rotulo_fim), "FIM_IF_%d", sequencia_rotulos++);
             definir_variavel(cond, 0);
+            // Convenção usada: se cond for negativa ou zero, não executa o bloco.
             fprintf(saida, "    LDA %s\n    JN %s\n    JZ %s\n", cond, rotulo_fim, rotulo_fim);
             if (!emitir_atribuicao_dinamica(saida, pular_espacos(linha), erro)) {
                 fprintf(stderr, "Erro na linha %d: %s\n", numero_linha, erro);
@@ -236,6 +239,7 @@ static int gerar_de_arquivo_drg(const char *arquivo_drg, const char *saida_asm) 
             snprintf(rotulo_ini, sizeof(rotulo_ini), "INI_WHILE_%d", sequencia_rotulos);
             snprintf(rotulo_fim, sizeof(rotulo_fim), "FIM_WHILE_%d", sequencia_rotulos++);
             definir_variavel(cond, 0);
+            // while cond: repete enquanto cond > 0.
             fprintf(saida, "%s:\n    LDA %s\n    JN %s\n    JZ %s\n", rotulo_ini, cond, rotulo_fim, rotulo_fim);
             if (!emitir_atribuicao_dinamica(saida, pular_espacos(linha), erro)) {
                 fprintf(stderr, "Erro na linha %d: %s\n", numero_linha, erro);
@@ -297,6 +301,8 @@ int main(int argc, char *argv[]) {
     }
 
     if (argc == 3) {
+        // Modo automático: se o primeiro argumento existir como arquivo, trata como .drg.
+        // Caso contrário, mantém compatibilidade com o modo de expressão única.
         FILE *teste = fopen(argv[1], "r");
         if (teste) {
             fclose(teste);

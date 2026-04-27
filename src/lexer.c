@@ -26,6 +26,7 @@ void analisar_lexico(char *linha) {
     entrada = linha;
     total_tokens = 0;
 
+    // Scanner simples: percorre caractere a caractere e gera lista linear de tokens.
     while (*entrada) {
         pular_espacos();
 
@@ -89,5 +90,6 @@ void analisar_lexico(char *linha) {
         }
     }
 
+    // Marca fim da entrada para o parser saber onde parar.
     adicionar_token(TOKEN_FIM, "EOF");
 }

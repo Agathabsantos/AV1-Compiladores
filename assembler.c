@@ -18,6 +18,7 @@ int total_simbolos = 0;
 uint8_t MEMORIA[256];
 uint8_t PC = 0;
 
+// Remove qualquer texto após ';' para ignorar comentários em assembly.
 void remover_comentarios(char *linha) {
     char *comentario = strchr(linha, ';');
     if (comentario) *comentario = '\0';
@@ -84,6 +85,8 @@ void adicionar_simbolo(char *nome, uint8_t endereco) {
 }
 
 // ====================== PRIMEIRA PASSAGEM ======================
+// Objetivo: validar sintaxe e montar tabela de símbolos (rótulo -> endereço),
+// sem gerar bytes finais ainda.
 void primeira_passagem(FILE *arquivo) {
     char linha[100];
     PC = 0;
@@ -253,6 +256,7 @@ void primeira_passagem(FILE *arquivo) {
 }
 
 // ====================== SEGUNDA PASSAGEM ======================
+// Objetivo: com a tabela pronta, converter instruções para bytes em MEMORIA[].
 void segunda_passagem(FILE *arquivo) {
     char linha[100];
     PC = 0;
@@ -328,6 +332,7 @@ void segunda_passagem(FILE *arquivo) {
             char *operando = proximo;
             if (operando != NULL && usa_operando(opcode)) {
                 int endereco;
+                // Operando pode ser hexadecimal, decimal ou rótulo.
                 if (operando[0] == '0' && (operando[1] == 'x' || operando[1] == 'X')) {
                     endereco = (int)strtol(operando, NULL, 16);
                 } else if (isdigit(operando[0]) || (operando[0] == '-' && isdigit(operando[1]))) {

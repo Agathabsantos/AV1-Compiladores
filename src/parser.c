@@ -106,6 +106,10 @@ static long fator(void);
 static long termo(void);
 static long expressao(void);
 
+// Gramática (precedência):
+// fator -> NUM | ID | '(' expressao ')'
+// termo -> fator ('*' fator)*
+// expressao -> termo ('+' termo)*
 static long fator(void) {
     Token t = atual();
 
@@ -169,6 +173,7 @@ int analisar_instrucao(char *linha,
     if (atual().tipo == TOKEN_INVALIDO)
         marcar_erro("Caractere invalido na entrada");
 
+    // Aceita "nome = expressao" ou só "expressao" (resultado em RESULT).
     if (!erro && atual().tipo == TOKEN_ID && proximo().tipo == TOKEN_IGUAL) {
         if (nome_reservado(atual().texto)) {
             marcar_erro("Nome de variavel reservado");
