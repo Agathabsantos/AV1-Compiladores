@@ -14,7 +14,7 @@ O objetivo foi construir um fluxo completo de montagem e execução de programas
 
 ## 1.1 Parser
 
-Além do arquivo legado `parser.c` (mantido apenas como referência), o projeto usa uma versão modular em `src/` com:
+O projeto usa uma versão modular em `src/` com:
 
 - `lexer.c`: análise léxica e geração de tokens;
 - `parser.c`: análise sintática/semântica da expressão;
