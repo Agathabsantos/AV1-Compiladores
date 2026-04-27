@@ -4,7 +4,7 @@ Projeto da disciplina de Compiladores com implementação de:
 
 - `assembler.c` (montador para a máquina Neander);
 - `executor.c` (simulador/executor da Neander);
-- `parser.c` (parser de expressões matemáticas básicas).
+- parser modular em `src/` para compilar `.drg` em `.asm`.
 
 ## Objetivo
 
@@ -24,11 +24,13 @@ O objetivo do projeto é montar programas em assembly da Neander, gerar memória
 - `parser.c`
   - parser legado em arquivo único (mantido como referência).
 - `src/`
-  - `token.h`, `lexer.c`, `parser.c`, `drg_compiler.c` (versão modular usada para gerar o binário `parser`);
+  - `token.h`, `lexer.c`, `parser.c`, `drg_compiler.c` (implementação principal usada para gerar o binário `parser`);
   - suporta expressões com `+`, `*`, parênteses, atribuição opcional (`v = expr`) e leitura de arquivo `.drg` com múltiplas linhas.
 - `testes/`
   - `teste_calculo_simples.drg`: exemplo do item 4 (cálculo simples);
   - `teste_salto_condicional.drg`: exemplo do item 4 (condicional com `if/while`, gerando `JMP`, `JN`, `JZ`);
+  - `asm_calculo_simples.asm`: versão manual do cálculo simples (uso direto no assembler);
+  - `asm_salto_condicional.asm`: versão manual com saltos (`JMP`, `JN`, `JZ`) sem passar pelo parser;
   - arquivos `.asm` e `.mem` gerados durante os testes.
 - `Relatorio.md`
   - breve relatório com a estrutura do assembler e o funcionamento do executor.
@@ -117,6 +119,13 @@ Também é possível usar `hex` no lugar de `decimal`:
 
 ```bash
 ./executor testes/teste_calculo_simples.mem hex
+```
+
+Exemplo sem parser (assembly manual):
+
+```bash
+./assembler testes/asm_calculo_simples.asm testes/asm_calculo_simples.mem
+./executor testes/asm_calculo_simples.mem decimal
 ```
 
 ## Compatibilidade com GUI Neander

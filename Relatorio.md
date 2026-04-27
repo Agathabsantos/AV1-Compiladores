@@ -2,10 +2,11 @@
 
 ## 1. Visão geral
 
-Este trabalho implementa dois módulos principais para a Máquina Neander:
+Este trabalho implementa três módulos integrados para a Máquina Neander:
 
 - `assembler.c`: traduz código assembly para arquivo de memória no formato NDR.
 - `executor.c`: carrega o arquivo de memória e simula a execução das instruções da máquina.
+- parser modular em `src/`: traduz `.drg` para `.asm` no fluxo principal.
 
 O objetivo foi construir um fluxo completo de montagem e execução de programas, com validação de sintaxe no assembler e simulação do ciclo de máquina no executor.
 
@@ -13,7 +14,7 @@ O objetivo foi construir um fluxo completo de montagem e execução de programas
 
 ## 1.1 Parser
 
-Além do arquivo legado `parser.c`, foi organizada uma versão modular em `src/` com:
+Além do arquivo legado `parser.c` (mantido apenas como referência), o projeto usa uma versão modular em `src/` com:
 
 - `lexer.c`: análise léxica e geração de tokens;
 - `parser.c`: análise sintática/semântica da expressão;
@@ -27,6 +28,10 @@ Na versão atual, o módulo principal aceita também arquivo `.drg` com múltipl
 Para os exemplos do item 4 do enunciado, os arquivos ficam centralizados em `testes/`:
 - `teste_calculo_simples.drg` (cálculo simples);
 - `teste_salto_condicional.drg` (condicional/laço em `.drg`, gerando `.asm` com `JMP`, `JN` e `JZ`).
+
+Também foram incluídos exemplos em assembly manual para execução direta no `assembler`, sem necessidade de passar pelo parser:
+- `asm_calculo_simples.asm`;
+- `asm_salto_condicional.asm`.
 
 ---
 
@@ -122,10 +127,11 @@ Essas flags controlam os saltos condicionais:
 
 ## 4. Conclusão
 
-O assembler e o executor foram implementados de forma funcional e integrada:
+Os módulos foram implementados de forma funcional e integrada:
 
 - o assembler gera arquivo de memória no formato NDR;
 - o executor carrega esse arquivo e executa corretamente os programas;
-- os testes de soma e saltos condicionais validaram o comportamento esperado.
+- o parser modular em `src/` gera `.asm` a partir de `.drg`;
+- os testes de soma e saltos condicionais (via parser e via assembly manual) validaram o comportamento esperado.
 
 Com isso, os requisitos de documentação sobre estrutura do assembler e funcionamento do executor foram atendidos.
