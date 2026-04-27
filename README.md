@@ -21,8 +21,6 @@ O objetivo do projeto é montar programas em assembly da Neander, gerar memória
   - carrega arquivo NDR;
   - executa ciclo fetch/decode/execute;
   - mostra estado final de registradores e memória.
-- `parser.c`
-  - parser legado em arquivo único (mantido como referência).
 - `src/`
   - `token.h`, `lexer.c`, `parser.c`, `drg_compiler.c` (implementação principal usada para gerar o binário `parser`);
   - suporta expressões com `+`, `*`, parênteses, atribuição opcional (`v = expr`) e leitura de arquivo `.drg` com múltiplas linhas.
