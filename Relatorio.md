@@ -17,19 +17,19 @@ O objetivo foi construir um fluxo completo de montagem e execução de programas
 O projeto usa uma versão modular em `src/` com:
 
 - `lexer.c`: análise léxica e geração de tokens;
-- `parser.c`: análise sintática/semântica da expressão;
+- `parser.c`: análise sintática e verificação simples de consistência da expressão;
 - `token.h`: tipos de token e assinaturas compartilhadas;
 - `drg_compiler.c`: programa principal para avaliar expressão e gerar `.asm`.
 
 O **lexer** (`lexer.c`) percorre o texto da linha e transforma sequências de caracteres em **tokens** (identificador, número, operadores e delimitadores), ignorando espaços e sinalizando o fim da entrada.
 
-O **parser** (`parser.c`) consome essa lista de tokens e aplica uma gramática simples por **descida recursiva**, respeitando precedência (`*` antes de `+`) e parênteses, além de validar se variáveis aparecem apenas depois de terem valor conhecido.
+O **parser** (`parser.c`) consome essa lista de tokens e aplica uma gramática simples por **descida recursiva**, respeitando precedência (`*` antes de `+`) e parênteses, além de rejeitar tokens inválidos, nomes reservados e expressões malformadas de acordo com a linguagem suportada.
 
 A **geração de código** fica concentrada em `drg_compiler.c`, que traduz atribuições e estruturas (`if`/`while`) em sequências de instruções Neander (`LDA`, `ADD`, `STA`, `JMP`, `JN`, `JZ`, `HLT`) e declara `DATA`/`SPACE` para constantes e variáveis usadas no programa gerado.
 
 Essa organização deixa o fluxo mais próximo do modelo visto em aula (fases separadas) sem aumentar a complexidade da linguagem suportada.
 
-Na versão atual, o módulo principal aceita também arquivo `.drg` com múltiplas linhas (por exemplo `a = 10`, `b = 20`, `c = a + b`), mantendo valores de variáveis entre linhas durante a análise e gerando um `.asm` único para o `assembler`.
+Na versão atual, o módulo principal aceita também arquivo `.drg` com múltiplas linhas (por exemplo `a = 10`, `b = 20`, `c = a + b`), mantendo o controle das variáveis utilizadas ao longo das linhas e gerando um `.asm` único para o `assembler`.
 
 Para os exemplos do item 4 do enunciado, os arquivos ficam centralizados em `testes/`:
 - `teste_calculo_simples.drg` (cálculo simples);
@@ -38,6 +38,8 @@ Para os exemplos do item 4 do enunciado, os arquivos ficam centralizados em `tes
 Também foram incluídos exemplos em assembly manual para execução direta no `assembler`, sem necessidade de passar pelo parser:
 - `asm_calculo_simples.asm`;
 - `asm_salto_condicional.asm`.
+
+A linguagem suportada é propositalmente simplificada, não contemplando uma árvore sintática abstrata (AST) completa, sendo suficiente para demonstrar o fluxo de compilação e geração de código.
 
 ---
 
