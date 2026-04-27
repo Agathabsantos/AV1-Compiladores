@@ -21,6 +21,12 @@ O projeto usa uma versão modular em `src/` com:
 - `token.h`: tipos de token e assinaturas compartilhadas;
 - `drg_compiler.c`: programa principal para avaliar expressão e gerar `.asm`.
 
+O **lexer** (`lexer.c`) percorre o texto da linha e transforma sequências de caracteres em **tokens** (identificador, número, operadores e delimitadores), ignorando espaços e sinalizando o fim da entrada.
+
+O **parser** (`parser.c`) consome essa lista de tokens e aplica uma gramática simples por **descida recursiva**, respeitando precedência (`*` antes de `+`) e parênteses, além de validar se variáveis aparecem apenas depois de terem valor conhecido.
+
+A **geração de código** fica concentrada em `drg_compiler.c`, que traduz atribuições e estruturas (`if`/`while`) em sequências de instruções Neander (`LDA`, `ADD`, `STA`, `JMP`, `JN`, `JZ`, `HLT`) e declara `DATA`/`SPACE` para constantes e variáveis usadas no programa gerado.
+
 Essa organização deixa o fluxo mais próximo do modelo visto em aula (fases separadas) sem aumentar a complexidade da linguagem suportada.
 
 Na versão atual, o módulo principal aceita também arquivo `.drg` com múltiplas linhas (por exemplo `a = 10`, `b = 20`, `c = a + b`), mantendo valores de variáveis entre linhas durante a análise e gerando um `.asm` único para o `assembler`.
