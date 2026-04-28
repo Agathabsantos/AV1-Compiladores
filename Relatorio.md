@@ -12,22 +12,39 @@ O objetivo foi construir um fluxo completo de montagem e execução de programas
 
 ---
 
-## 1.1 Parser
+## 1.1 Parser e Gramática EBNF
 
-O projeto usa uma versão modular em `src/` com:
+Foi usada uma pequena linguagem em arquivos **`.drg`** para descrever cálculos e estruturas de controle simples. A implementação fica modular: o **`lexer.c`** gera tokens, o **`parser.c`** faz a análise sintática de **expressões** por descida recursiva e o **`drg_compiler.c`** percorre o programa `.drg`, detecta `if`/`while` e emite assembly Neander (`LDA`, `ADD`, `STA`, `JMP`, `JN`, `JZ`, `HLT`), reservando constantes (`DATA`) e variáveis (`SPACE`).
 
-- `lexer.c`: análise léxica e geração de tokens;
-- `parser.c`: análise sintática e verificação simples de consistência da expressão;
-- `token.h`: tipos de token e assinaturas compartilhadas;
-- `drg_compiler.c`: programa principal para avaliar expressão e gerar `.asm`.
+A seguir, uma **versão resumida** da gramática (termos entre aspas são literais; espaços entre tokens são opcionais na entrada real):
 
-O **lexer** (`lexer.c`) percorre o texto da linha e transforma sequências de caracteres em **tokens** (identificador, número, operadores e delimitadores), ignorando espaços e sinalizando o fim da entrada.
+```
+<programa> ::= { <instrução> }
 
-O **parser** (`parser.c`) consome essa lista de tokens e aplica uma gramática simples por **descida recursiva**, respeitando precedência (`*` antes de `+`) e parênteses, além de rejeitar tokens inválidos, nomes reservados e expressões malformadas de acordo com a linguagem suportada.
+<instrução> ::= <atribuição>
+             | "if " <variável> <nova_linha> <atribuição>
+             | "while " <variável> <nova_linha> <atribuição>
 
-A **geração de código** fica concentrada em `drg_compiler.c`, que traduz atribuições e estruturas (`if`/`while`) em sequências de instruções Neander (`LDA`, `ADD`, `STA`, `JMP`, `JN`, `JZ`, `HLT`) e declara `DATA`/`SPACE` para constantes e variáveis usadas no programa gerado.
+<atribuição> ::= <variável> "=" <expressão>
 
-Essa organização deixa o fluxo mais próximo do modelo visto em aula (fases separadas) sem aumentar a complexidade da linguagem suportada.
+<expressão> ::= <termo> { "+" <termo> }
+
+<termo>       ::= <fator> { "*" <fator> }
+
+<fator>       ::= <número> | <variável> | "(" <expressão> ")"
+
+<variável>    ::= ( <letra> | "_" ) { <letra> | <dígito> | "_" }
+
+<número>      ::= <dígito> { <dígito> }
+
+<dígito>      ::= "0" | "1" | ... | "9"
+
+<letra>       ::= "a" | "b" | ... | "z" | "A" | "B" | ... | "Z"
+```
+
+O símbolo **`<nova_linha>`** indica que, em `if` e `while`, o **corpo** (uma atribuição) aparece na **linha seguinte** no arquivo — como nos exemplos da pasta `testes/`. Linhas vazias ou só com comentário (`;` ou `#`) são ignoradas.
+
+Observações rápidas para alinhar gramática e código: (i) o **`parser.c`** também aceita uma linha só com **expressão** (sem `=`), resultado associado ao nome `RESULT` na avaliação isolada; (ii) alguns identificadores são **reservados** (mnemônicos como `LDA`, `ORG`, …) e são rejeitados como nome de variável; (iii) **`notação opcional com menos`** na frente de literal (`<número>` com sinal) não existe como um único token no lexer — quando há subtração de um valor constante em uma atribuição no `.drg`, ela é tratada pelo compilador como combinação `ADD` com constante negativa.
 
 Na versão atual, o módulo principal aceita também arquivo `.drg` com múltiplas linhas (por exemplo `a = 10`, `b = 20`, `c = a + b`), mantendo o controle das variáveis utilizadas ao longo das linhas e gerando um `.asm` único para o `assembler`.
 
